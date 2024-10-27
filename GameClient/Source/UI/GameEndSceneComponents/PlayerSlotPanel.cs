@@ -34,8 +34,9 @@ internal class PlayerSlotPanel : Component
     {
         var color = new Color(player.Color);
 
-        this.background = new RoundedSolidColor(MonoTanks.ThemeColor, 15)
+        this.background = new RoundedSolidColor(MonoTanks.ThemeColor, 20)
         {
+            AutoAdjustRadius = true,
             Parent = this,
             Opacity = 0.45f,
         };

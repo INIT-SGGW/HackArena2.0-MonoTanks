@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
 using GameClient.Networking;
 using GameClient.Scenes.GameCore;
 using GameClient.Scenes.LobbyCore;
+using GameLogic;
 using GameLogic.Networking;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using MonoRivUI;
 
 namespace GameClient.Scenes;
@@ -20,6 +23,10 @@ internal class Lobby : Scene
 {
     private readonly LobbyComponents components;
     private readonly LobbyUpdater updater;
+
+    private ReplaySceneDisplayEventArgs? replayArgs;
+    private bool isReplay;
+    private bool isReplayLoading;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Lobby"/> class.
@@ -36,6 +43,19 @@ internal class Lobby : Scene
     public override void Update(GameTime gameTime)
     {
         UpdateMainMenuBackgroundEffectRotation(gameTime);
+
+        if (this.isReplay)
+        {
+            if (KeyboardController.IsKeyHit(Keys.Escape))
+            {
+                ChangeToPreviousOrDefault<Replay.ChooseReplay>();
+            }
+            else if (KeyboardController.IsKeyHit(Keys.Space))
+            {
+                ChangeWithoutStack<Game>(this.replayArgs!);
+            }
+        }
+
         base.Update(gameTime);
     }
 
@@ -44,6 +64,12 @@ internal class Lobby : Scene
     {
         ScreenController.GraphicsDevice.Clear(Color.Black);
         MainEffect.Draw();
+
+        if (this.isReplayLoading)
+        {
+            return;
+        }
+
         base.Draw(gameTime);
     }
 
@@ -88,24 +114,73 @@ internal class Lobby : Scene
         await ServerConnection.SendAsync(packet);
     }
 
-    private void Lobby_Showing(object? sender, SceneDisplayEventArgs? e)
+    private async void Lobby_Showing(object? sender, SceneDisplayEventArgs? e)
     {
-        this.updater.UpdateJoinCode();
+        this.isReplay = e is ReplaySceneDisplayEventArgs;
 
-        ServerConnection.MessageReceived += this.Connection_MessageReceived;
-        ServerConnection.ErrorThrew += Connection_ErrorThrew;
+        this.components.LeaveButton.IsEnabled = !this.isReplay
+#if HACKATHON
+            || (!(e as ReplaySceneDisplayEventArgs)?.ShowMode ?? true)
+#endif
+        ;
 
-        _ = Task.Run(async () =>
+        if (this.isReplay)
         {
-            await SendLobbyDataRequest();
-            await SendGameStatusRequest();
-        });
+            var replay = this.replayArgs = e as ReplaySceneDisplayEventArgs;
+
+            this.isReplayLoading = true;
+            ShowOverlay<Loading>();
+
+            try
+            {
+                await replay!.LoadData();
+
+                var serverSettings = replay.LobbyData.ServerSettings;
+                Game.Settings = serverSettings;
+                Game.PlayerId = null;
+
+#if HACKATHON
+                this.updater.UpdateMatchName(serverSettings.MatchName);
+#endif
+
+                var players = replay.LobbyData.Players;
+                this.updater.UpdatePlayerSlotPanels(players, serverSettings.NumberOfPlayers);
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.ThrowError("Failed to load replay data.");
+                DebugConsole.ThrowError(ex);
+                ChangeWithoutStack<Replay.ChooseReplay>();
+                return;
+            }
+            finally
+            {
+                HideOverlay<Loading>();
+                this.isReplayLoading = false;
+            }
+        }
+        else
+        {
+            this.updater.UpdateJoinCode();
+
+            ServerConnection.MessageReceived += this.Connection_MessageReceived;
+            ServerConnection.ErrorThrew += Connection_ErrorThrew;
+
+            _ = Task.Run(async () =>
+            {
+                await SendLobbyDataRequest();
+                await SendGameStatusRequest();
+            });
+        }
     }
 
     private void Lobby_Hiding(object? sender, EventArgs e)
     {
-        ServerConnection.MessageReceived -= this.Connection_MessageReceived;
-        ServerConnection.ErrorThrew -= Connection_ErrorThrew;
+        if (!this.isReplay)
+        {
+            ServerConnection.MessageReceived -= this.Connection_MessageReceived;
+            ServerConnection.ErrorThrew -= Connection_ErrorThrew;
+        }
     }
 
     private void Lobby_Hid(object? sender, EventArgs e)

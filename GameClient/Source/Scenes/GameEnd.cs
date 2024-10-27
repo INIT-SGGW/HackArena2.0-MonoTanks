@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
 using GameClient.Networking;
+using GameClient.Scenes.GameCore;
 using GameClient.Scenes.GameEndCore;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using MonoRivUI;
 
 namespace GameClient.Scenes;
@@ -16,6 +18,10 @@ internal class GameEnd : Scene
 {
     private readonly GameEndComponents components;
     private readonly GameEndUpdater updater;
+
+#if HACKATHON
+    private ReplaySceneDisplayEventArgs? replayArgs = default!;
+#endif
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameEnd"/> class.
@@ -32,6 +38,16 @@ internal class GameEnd : Scene
     public override void Update(GameTime gameTime)
     {
         UpdateMainMenuBackgroundEffectRotation(gameTime);
+
+#if HACKATHON
+
+        if (this.replayArgs is not null && KeyboardController.IsKeyHit(Keys.Space))
+        {
+            ChangeWithoutStack<Replay.MatchResults>(this.replayArgs);
+        }
+
+#endif
+
         base.Update(gameTime);
     }
 
@@ -79,10 +95,18 @@ internal class GameEnd : Scene
             return;
         }
 
+#if HACKATHON
+        this.replayArgs = args.ReplayArgs;
+#endif
+
         this.updater.UpdateScoreboard(args.Players);
 
 #if HACKATHON
         this.updater.UpdateMatchName(Game.Settings?.MatchName);
+
+        this.components.ContinueButton.IsEnabled = this.replayArgs is null
+            || !this.replayArgs.ShowMode;
+
 #endif
 
         this.components.Scoreboard

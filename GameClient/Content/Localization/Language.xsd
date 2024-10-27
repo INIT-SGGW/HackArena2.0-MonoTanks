@@ -11,7 +11,7 @@
 			<xs:element name="Ok" type="xs:string"/>
 			<xs:element name="JoinGame" type="xs:string"/>
 			<xs:element name="Settings" type="xs:string"/>
-			<xs:element name="Authors" type="xs:string"/>
+			<xs:element name="WatchReplay" type="xs:string"/>
 			<xs:element name="Exit" type="xs:string"/>
 			<xs:element name="Back" type="xs:string"/>
 			<xs:element name="Close" type="xs:string"/>

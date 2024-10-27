@@ -126,6 +126,9 @@ internal class MainMenu : Scene
         var joinRoomBtn = CreateButton(new LocalizedString("Buttons.JoinGame"), listBox, "join");
         joinRoomBtn.Clicked += (s, e) => Change<JoinRoom>();
 
+        var watchReplayBtn = CreateButton(new LocalizedString("Buttons.WatchReplay"), listBox, "watch_replay");
+        watchReplayBtn.Clicked += (s, e) => Change<Replay.ChooseReplay>();
+
         var settingsBtn = CreateButton(new LocalizedString("Buttons.Settings"), listBox, "settings");
         settingsBtn.Clicked += (s, e) => Change<Settings>();
 

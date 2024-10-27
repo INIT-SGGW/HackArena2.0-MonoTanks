@@ -57,21 +57,24 @@ internal class RoundedSolidColor : SolidColor, IButtonContent<RoundedSolidColor>
     /// <inheritdoc/>
     bool IButtonContent<RoundedSolidColor>.IsButtonContentHovered(Point mousePosition)
     {
-        var size = this.Transform.Size;
+        Point location = this.Transform.Location;
+        Point size = this.Transform.Size;
+        Point mouseOffset = mousePosition - location;
+
         var radius = Math.Min(this.Radius, Math.Min(size.X, size.Y) / 2);
 
         // Check if inside central rectangle (not including corners)
-        if (mousePosition.X >= radius && mousePosition.X < size.X - radius &&
-            mousePosition.Y >= radius && mousePosition.Y < size.Y - radius)
+        if (mouseOffset.X >= radius && mouseOffset.X < size.X - radius &&
+            mouseOffset.Y >= 0 && mouseOffset.Y < size.Y)
         {
             return true;
         }
 
         // Check if inside rounded corners (Top-left, Top-right, Bottom-left, Bottom-right)
-        return IsInsideCorner(mousePosition, new Vector2(radius, radius), radius) || // Top-left
-               IsInsideCorner(mousePosition, new Vector2(size.X - radius - 1, radius), radius) || // Top-right
-               IsInsideCorner(mousePosition, new Vector2(radius, size.Y - radius - 1), radius) || // Bottom-left
-               IsInsideCorner(mousePosition, new Vector2(size.X - radius - 1, size.Y - radius - 1), radius); // Bottom-right
+        return IsInsideCorner(mouseOffset, new Vector2(radius, radius), radius) || // Top-left
+               IsInsideCorner(mouseOffset, new Vector2(size.X - radius - 1, radius), radius) || // Top-right
+               IsInsideCorner(mouseOffset, new Vector2(radius, size.Y - radius - 1), radius) || // Bottom-left
+               IsInsideCorner(mouseOffset, new Vector2(size.X - radius - 1, size.Y - radius - 1), radius); // Bottom-right
     }
 
     /// <inheritdoc/>

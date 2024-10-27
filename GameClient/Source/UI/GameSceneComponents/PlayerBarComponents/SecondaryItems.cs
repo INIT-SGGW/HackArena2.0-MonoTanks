@@ -85,6 +85,17 @@ internal class SecondaryItems : PlayerBarComponent, ILoadStaticContent
         base.Update(gameTime);
     }
 
+    /// <inheritdoc/>
+    public override void Draw(GameTime gameTime)
+    {
+        if (this.Player.IsDead)
+        {
+            return;
+        }
+
+        base.Draw(gameTime);
+    }
+
     private class Item : Component
     {
         private readonly Player player;

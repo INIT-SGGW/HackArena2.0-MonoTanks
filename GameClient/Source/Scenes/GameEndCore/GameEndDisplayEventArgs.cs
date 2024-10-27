@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using GameClient.Scenes.GameCore;
 using GameLogic;
 using MonoRivUI;
 
@@ -13,4 +14,13 @@ internal class GameEndDisplayEventArgs(IEnumerable<Player> players) : SceneDispl
     /// Gets the join code to join the game.
     /// </summary>
     public IEnumerable<Player> Players { get; } = players;
+
+#if HACKATHON
+
+    /// <summary>
+    /// Gets the replay scene display arguments.
+    /// </summary>
+    public ReplaySceneDisplayEventArgs? ReplayArgs { get; init; }
+
+#endif
 }

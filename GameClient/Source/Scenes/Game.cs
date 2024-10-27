@@ -27,6 +27,15 @@ internal class Game : Scene
     private bool isContentLoading;
     private bool isContentUpdatedAfterLoad;
 
+    private ReplaySceneDisplayEventArgs? replayArgs;
+    private TimeSpan replayTime = TimeSpan.Zero;
+    private int replayTick;
+    private bool isReplayLoaded;
+    private bool isReplayRunning;
+    private bool isReplay;
+
+    private GameStatePayload[] replayGameStates = [];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Game"/> class.
     /// </summary>
@@ -93,6 +102,11 @@ internal class Game : Scene
             this.isContentUpdatedAfterLoad = true;
         }
 
+        if (this.isReplay && this.isReplayLoaded)
+        {
+            this.UpdateReplay(gameTime);
+        }
+
         base.Update(gameTime);
     }
 
@@ -107,6 +121,11 @@ internal class Game : Scene
             return;
         }
 
+        if (this.isReplay && !this.isReplayLoaded)
+        {
+            return;
+        }
+
         base.Draw(gameTime);
     }
 
@@ -115,6 +134,7 @@ internal class Game : Scene
     {
         this.Showing += this.Game_Showing;
         this.Hiding += this.Game_Hiding;
+        this.Hid += this.Game_Hid;
     }
 
     /// <inheritdoc/>
@@ -207,10 +227,70 @@ internal class Game : Scene
         }
     }
 
+    private void UpdateReplay(GameTime gameTime)
+    {
+        if (KeyboardController.IsKeyHit(Keys.Left))
+        {
+            this.replayTime -= 100 * gameTime.ElapsedGameTime;
+            if (this.replayTime < TimeSpan.Zero)
+            {
+                this.replayTime = TimeSpan.Zero;
+            }
+        }
+        else if (KeyboardController.IsKeyHit(Keys.Right))
+        {
+            this.replayTime += 100 * gameTime.ElapsedGameTime;
+        }
+
+        if (this.isReplayRunning ^= KeyboardController.IsKeyHit(Keys.Space))
+        {
+            this.replayTime += gameTime.ElapsedGameTime;
+            var lastReplayIndex = this.replayTick;
+            this.replayTick = Math.Max((int)(this.replayTime.TotalMilliseconds / Settings!.BroadcastInterval), 0);
+
+            if (this.replayTick >= this.replayGameStates.Length)
+            {
+                var args = new GameEndDisplayEventArgs(this.replayArgs!.GameEnd.Players)
+                {
+#if HACKATHON
+                    ReplayArgs = this.replayArgs,
+#endif
+                };
+                ChangeWithoutStack<GameEnd>(args);
+            }
+            else if (this.replayTick != lastReplayIndex)
+            {
+                this.UpdateReplayTick(this.replayTick);
+            }
+        }
+    }
+
+    private void UpdateReplayTick(int tick)
+    {
+        var gameState = this.replayGameStates[tick];
+        this.updater.UpdateTimer(gameState.Tick);
+        this.updater.UpdateGridLogic(gameState);
+        this.updater.UpdatePlayers(gameState.Players);
+        this.updater.RefreshPlayerBarPanels();
+        this.updater.UpdatePlayersFogOfWar();
+    }
+
     private async void Game_Showing(object? sender, SceneDisplayEventArgs? e)
     {
-        ServerConnection.BufferSize = 1024 * 32;
-        ServerConnection.MessageReceived += this.Connection_MessageReceived;
+        this.isReplay = e is ReplaySceneDisplayEventArgs;
+        this.replayArgs = e as ReplaySceneDisplayEventArgs;
+
+        if (!this.isReplay)
+        {
+            ServerConnection.BufferSize = 1024 * 32;
+            ServerConnection.MessageReceived += this.Connection_MessageReceived;
+        }
+
+        this.components.MenuButton.IsEnabled = !this.isReplay
+#if HACKATHON
+            || (!this.replayArgs?.ShowMode ?? true);
+#endif
+        ;
 
         if (!this.IsContentLoaded)
         {
@@ -221,21 +301,52 @@ internal class Game : Scene
             this.isContentLoading = false;
         }
 
-        var gameSceneLoadedPayload = new EmptyPayload() { Type = PacketType.ReadyToReceiveGameState };
-        var packet = PacketSerializer.Serialize(gameSceneLoadedPayload);
-        await ServerConnection.SendAsync(packet);
+        if (this.isReplay)
+        {
+            try
+            {
+                ShowOverlay<Loading>();
 
-        if (Settings is null)
+                await Task.Run(() =>
+                {
+                    var replay = (e as ReplaySceneDisplayEventArgs)!;
+                    this.replayGameStates = replay.GameStates;
+                    this.updater.EnableGridComponent();
+                    this.UpdateReplayTick(0);
+                    this.isReplayLoaded = true;
+                });
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.ThrowError("Failed to load replay data.");
+                DebugConsole.ThrowError(ex);
+                ChangeWithoutStack<Replay.ChooseReplay>();
+                return;
+            }
+            finally
+            {
+                HideOverlay<Loading>();
+            }
+        }
+
+        if (!this.isReplay)
+        {
+            var gameSceneLoadedPayload = new EmptyPayload() { Type = PacketType.ReadyToReceiveGameState };
+            var packet = PacketSerializer.Serialize(gameSceneLoadedPayload);
+            await ServerConnection.SendAsync(packet);
+        }
+
+        if (!this.isReplay && Settings is null)
         {
             var lobbyDataRequest = new EmptyPayload() { Type = PacketType.LobbyDataRequest };
-            packet = PacketSerializer.Serialize(lobbyDataRequest);
+            var packet = PacketSerializer.Serialize(lobbyDataRequest);
             await ServerConnection.SendAsync(packet);
         }
 #if HACKATHON
         else
         {
-            string? matchName = Settings.MatchName;
-            if (Settings.SandboxMode)
+            string? matchName = Settings?.MatchName;
+            if (Settings is not null && Settings.SandboxMode)
             {
                 if (matchName is null)
                 {
@@ -274,5 +385,16 @@ internal class Game : Scene
         }
 
         ServerConnection.MessageReceived -= this.Connection_MessageReceived;
+    }
+
+    private void Game_Hid(object? sender, EventArgs e)
+    {
+        this.players.Clear();
+        this.replayGameStates = [];
+        this.replayTick = -1;
+        this.isReplay = false;
+        this.isReplayLoaded = false;
+        this.isReplayRunning = false;
+        this.replayTime = TimeSpan.Zero;
     }
 }
