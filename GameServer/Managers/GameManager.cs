@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using GameLogic;
+using GameLogic.Networking;
+using Newtonsoft.Json;
 using Serilog.Core;
 
 namespace GameServer;
@@ -223,7 +225,7 @@ internal class GameManager(GameInstance game, Logger log)
                 }
 
                 log.Verbose("Broadcasting game state...");
-                var broadcast = this.BroadcastGameStateAsync();
+                this.BroadcastGameStateAsync();
 
                 log.Verbose("Resetting player radar usage...");
                 this.logicUpdater.ResetPlayerRadarUsage();
@@ -281,9 +283,8 @@ internal class GameManager(GameInstance game, Logger log)
         }
     }
 
-    private List<Task> BroadcastGameStateAsync()
+    private void BroadcastGameStateAsync()
     {
-        var tasks = new List<Task>();
         var cancellationTokenSource = new CancellationTokenSource(game.Settings.BroadcastInterval * 100);
 
         foreach (Connection connection in game.Connections)
@@ -295,17 +296,14 @@ internal class GameManager(GameInstance game, Logger log)
 
             log.Verbose("Sending game state ({tick}) to {Connection}.", this.tick, connection);
 
-            var payload = game.PayloadHelper.GetGameStatePayload(
+            GameStatePayload payload = game.PayloadHelper.GetGameStatePayload(
                 connection,
                 this.tick,
                 this.CurrentGameStateId!,
                 out var converters);
 
             var packet = new ResponsePacket(payload, log, converters);
-            var task = packet.SendAsync(connection, cancellationTokenSource.Token, this);
-            tasks.Add(task);
+            _ = packet.SendAsync(connection, cancellationTokenSource.Token, this);
         }
-
-        return tasks;
     }
 }

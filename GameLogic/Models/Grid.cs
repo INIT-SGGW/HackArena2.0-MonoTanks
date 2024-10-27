@@ -635,6 +635,11 @@ public class Grid(int dimension, int seed)
     {
         foreach (Tank tank in this.tanks)
         {
+            if (tank.IsDead)
+            {
+                continue;
+            }
+
             tank.Owner.CalculateVisibilityGrid(this.fogOfWarManager);
         }
     }
