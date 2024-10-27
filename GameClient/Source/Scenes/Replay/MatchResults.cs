@@ -118,9 +118,9 @@ internal class MatchResults : Scene
 
     private void NextReplay()
     {
-
         var directory = PathUtils.GetAbsolutePath(ChooseReplay.ReplayDirectory);
         bool currentFound = false;
+
         foreach (var file in Directory.GetFiles(directory, "*.json"))
         {
             if (file.EndsWith("_match_results.json"))
@@ -145,7 +145,10 @@ internal class MatchResults : Scene
             };
 
             Change<Lobby>(args);
+            return;
         }
+
+        Change<MainMenu>();
     }
 }
 

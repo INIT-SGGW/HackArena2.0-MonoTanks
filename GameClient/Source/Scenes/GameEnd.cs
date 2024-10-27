@@ -41,7 +41,9 @@ internal class GameEnd : Scene
 
 #if HACKATHON
 
-        if (this.replayArgs is not null && KeyboardController.IsKeyHit(Keys.Space))
+        if (this.replayArgs is not null
+            && this.replayArgs.ShowMode
+            && KeyboardController.IsKeyHit(Keys.Space))
         {
             ChangeWithoutStack<Replay.MatchResults>(this.replayArgs);
         }
